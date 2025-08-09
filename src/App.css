@@ -1,0 +1,162 @@
+#root {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+  color: #213547; /* Set a default dark text color */
+}
+
+/* Ensure all buttons have dark text */
+button {
+  color: #213547;
+}
+
+.logo {
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: filter 300ms;
+}
+
+.logo:hover {
+  filter: drop-shadow(0 0 2em #646cffaa);
+}
+.logo.react:hover {
+  filter: drop-shadow(0 0 2em #61dafbaa);
+}
+
+@keyframes logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a:nth-of-type(2) .logo {
+    animation: logo-spin infinite 20s linear;
+  }
+}
+
+.card {
+  padding: 2em;
+}
+
+.read-the-docs {
+  color: #888;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  margin-bottom: 1rem;
+}
+
+.form-group label {
+  margin-bottom: 0.5rem;
+  font-weight: bold;
+}
+
+.form-group input,
+.form-group select {
+  width: 100%;
+  padding: 0.5rem;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+}
+
+input[type="file"],
+select {
+  padding: 0.5rem;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  width: 100%;
+}
+
+.extracted-text {
+  background-color: #f0f0f0;
+  border: 1px solid #ccc;
+  padding: 1em;
+  white-space: pre-wrap; /* Allows text to wrap */
+  word-wrap: break-word;
+  text-align: left;
+  max-height: 400px;
+  overflow-y: auto;
+  border-radius: 8px;
+}
+
+.status-message {
+  margin-top: 1rem;
+  color: #dc2626; /* Red for errors */
+}
+
+/* Quiz Styles */
+.question-container {
+  margin-bottom: 1.5rem;
+  text-align: left;
+}
+
+.options-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.option-button {
+  width: 100%;
+  padding: 0.8rem;
+  text-align: left;
+  background-color: #f9f9f9;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+
+.option-button:hover {
+  background-color: #f0f0f0;
+}
+
+.option-button.selected {
+  background-color: #e0e7ff;
+  border-color: #6366f1;
+  font-weight: bold;
+}
+
+.navigation-buttons {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+
+/* Results Styles */
+.results-review {
+  margin-top: 2rem;
+  text-align: left;
+}
+
+.result-item {
+  padding: 1rem;
+  border-bottom: 1px solid #eee;
+}
+
+.result-item:last-child {
+  border-bottom: none;
+}
+
+.result-item p {
+  margin: 0.25rem 0;
+}
+
+.correct {
+  color: #16a34a;
+}
+
+.incorrect {
+  color: #dc2626;
+}
