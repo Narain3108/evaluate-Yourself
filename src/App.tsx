@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import './App.css';
+import { useState, useLayoutEffect } from 'react';
+import gsap from 'gsap';
+import './App .css';
 import { LandingPage } from './pages/LandingPage';
 import { UploadPage } from './pages/UploadPage';
 import { Quiz } from './components/Quiz';
@@ -24,15 +25,33 @@ function App() {
     setCurrentPage('quiz');
   };
 
-  if (currentPage === 'quiz' && quizData) {
-    return <Quiz questions={quizData} onFinish={navigateToLanding} />;
-  }
+  const page = ((): React.ReactElement => {
+    if (currentPage === 'quiz' && quizData) {
+      return <Quiz questions={quizData} onFinish={navigateToLanding} />;
+    }
+    if (currentPage === 'upload') {
+      return <UploadPage onStartQuiz={startQuiz} onBack={navigateToLanding} />;
+    }
+    return <LandingPage onGetStarted={navigateToUpload} />;
+  })();
 
-  if (currentPage === 'upload') {
-    return <UploadPage onStartQuiz={startQuiz} onBack={navigateToLanding} />;
-  }
+  // Route transition on page change
+  useLayoutEffect(() => {
+    gsap.from('.route-page', { opacity: 0, y: 18, duration: 0.45, ease: 'power2.out' });
+  }, [currentPage]);
 
-  return <LandingPage onGetStarted={navigateToUpload} />;
+  return (
+    <div className="app-shell">
+      {/* ...existing code... header/nav if you have it ... */}
+      <main className="app-main" aria-live="polite">
+        <div key={currentPage} className="route-page">
+          {/* ...existing code... */}
+          {page}
+        </div>
+      </main>
+      {/* ...existing code... footer ... */}
+    </div>
+  );
 }
 
 export default App;

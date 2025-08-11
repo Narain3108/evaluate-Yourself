@@ -1,207 +1,394 @@
-import React, { useState } from 'react';
-import { uploadFile } from '../api/upload';
-import type { Question } from '../App';
+"use client"
+
+import type React from "react"
+import { useState, useRef } from "react"
+import { uploadFile } from "../api/upload"
+import type { Question } from "../App"
+import { ArrowLeft, Upload, FileText, FileImage, File, Plus, Minus, Sparkles,  Target, Zap } from "lucide-react"
 
 interface UploadPageProps {
-  onStartQuiz: (questions: Question[]) => void;
-  onBack: () => void;
+  onStartQuiz: (questions: Question[]) => void
+  onBack: () => void
 }
 
 export const UploadPage: React.FC<UploadPageProps> = ({ onStartQuiz, onBack }) => {
-  const [file, setFile] = useState<File | null>(null);
-  const [docType, setDocType] = useState('pdf');
-  const [numQuestions, setNumQuestions] = useState(5);
-  const [level, setLevel] = useState('medium');
-  const [statusMessage, setStatusMessage] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [dragActive, setDragActive] = useState(false);
+  const [file, setFile] = useState<File | null>(null)
+  const [docType, setDocType] = useState("pdf")
+  const [numQuestions, setNumQuestions] = useState(5)
+  const [level, setLevel] = useState("medium")
+  const [statusMessage, setStatusMessage] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
+  const [dragActive, setDragActive] = useState(false)
+  const [currentStep, setCurrentStep] = useState(1)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleDrag = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault()
+    e.stopPropagation()
     if (e.type === "dragenter" || e.type === "dragover") {
-      setDragActive(true);
+      setDragActive(true)
     } else if (e.type === "dragleave") {
-      setDragActive(false);
+      setDragActive(false)
     }
-  };
+  }
 
   const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
+    e.preventDefault()
+    e.stopPropagation()
+    setDragActive(false)
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      setFile(e.dataTransfer.files[0]);
+      setFile(e.dataTransfer.files[0])
+      setCurrentStep(2)
     }
-  };
+  }
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files?.[0]) {
+      setFile(e.target.files[0])
+      setCurrentStep(2)
+    }
+  }
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+    event.preventDefault()
     if (!file) {
-      setStatusMessage('Please select a file first.');
-      return;
+      setStatusMessage("Please select a file first.")
+      return
     }
-    setStatusMessage('');
-    setIsLoading(true);
-    
+
+    setStatusMessage("")
+    setIsLoading(true)
+
     try {
-      const result = await uploadFile(file, docType, numQuestions, level);
-      onStartQuiz(result.quiz.questions);
+      const result = await uploadFile(file, docType, numQuestions, level)
+      onStartQuiz(result.quiz.questions)
     } catch (error: any) {
-      setStatusMessage(`Error: ${error.message || 'Operation failed.'}`);
+      setStatusMessage(`Error: ${error.message || "Operation failed."}`)
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
+
+  const documentTypes = [
+    {
+      value: "pdf",
+      label: "PDF Document",
+      icon: FileText,
+      description: "Portable Document Format",
+      color: "from-red-500 to-red-600",
+    },
+    {
+      value: "docx",
+      label: "Word Document",
+      icon: File,
+      description: "Microsoft Word Format",
+      color: "from-blue-500 to-blue-600",
+    },
+    {
+      value: "photo",
+      label: "Image/Photo",
+      icon: FileImage,
+      description: "JPG, PNG, or other images",
+      color: "from-green-500 to-green-600",
+    },
+  ]
+
+  const difficultyLevels = [
+    {
+      value: "easy",
+      label: "Easy",
+      emoji: "🟢",
+      description: "Basic concepts and straightforward questions",
+      color: "from-green-400 to-green-500",
+    },
+    {
+      value: "medium",
+      label: "Medium",
+      emoji: "🟡",
+      description: "Moderate complexity with some analysis",
+      color: "from-yellow-400 to-orange-500",
+    },
+    {
+      value: "hard",
+      label: "Hard",
+      emoji: "🔴",
+      description: "Advanced concepts requiring deep thinking",
+      color: "from-red-400 to-red-500",
+    },
+  ]
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return "0 Bytes"
+    const k = 1024
+    const sizes = ["Bytes", "KB", "MB", "GB"]
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return Number.parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i]
+  }
 
   return (
     <div className="upload-page">
+      {/* Header */}
       <div className="upload-header">
         <button className="back-button" onClick={onBack}>
-          <svg viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
-          </svg>
-          Back to Home
+          <ArrowLeft className="w-5 h-5" />
+          <span>Back to Home</span>
         </button>
-        <h1 className="upload-title">
-          <span className="gradient-text">Create Your Quiz</span>
-        </h1>
-        <p className="upload-subtitle">Upload your document and customize your learning experience</p>
+
+        <div className="header-content">
+          <div className="header-badge">
+            <Sparkles className="w-4 h-4" />
+            <span>AI Quiz Generator</span>
+          </div>
+          <h1 className="upload-title">
+            Create Your <span className="gradient-text">Personalized Quiz</span>
+          </h1>
+          <p className="upload-subtitle">
+            Upload your document and let our AI create engaging questions tailored to your learning goals
+          </p>
+        </div>
+
+        {/* Progress Indicator */}
+        <div className="progress-indicator">
+          <div className="progress-steps">
+            {[1, 2, 3].map((step) => (
+              <div key={step} className="progress-step-wrapper">
+                <div
+                  className={`progress-step ${currentStep >= step ? "active" : ""} ${currentStep > step ? "completed" : ""}`}
+                >
+                  {currentStep > step ? <div className="step-check">✓</div> : <span>{step}</span>}
+                </div>
+                {step < 3 && <div className={`progress-line ${currentStep > step ? "completed" : ""}`} />}
+              </div>
+            ))}
+          </div>
+          <div className="progress-labels">
+            <span className={currentStep >= 1 ? "active" : ""}>Upload</span>
+            <span className={currentStep >= 2 ? "active" : ""}>Configure</span>
+            <span className={currentStep >= 3 ? "active" : ""}>Generate</span>
+          </div>
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} className="upload-form">
-        <div className="form-steps">
-          <div className="form-step">
-            <div className="step-number">1</div>
-            <div className="step-content">
-              <label className="step-label">Upload Your Document</label>
-              <div 
-                className={`file-drop-zone ${dragActive ? 'drag-active' : ''} ${file ? 'has-file' : ''}`}
-                onDragEnter={handleDrag}
-                onDragLeave={handleDrag}
-                onDragOver={handleDrag}
-                onDrop={handleDrop}
-              >
-                <input
-                  type="file"
-                  id="fileInput"
-                  onChange={(e) => setFile(e.target.files?.[0] || null)}
-                  required
-                  hidden
-                />
-                <label htmlFor="fileInput" className="file-input-label">
-                  {file ? (
-                    <div className="file-selected">
-                      <div className="file-icon">📄</div>
-                      <span className="file-name">{file.name}</span>
-                      <span className="file-size">{(file.size / 1024 / 1024).toFixed(2)} MB</span>
-                    </div>
-                  ) : (
-                    <div className="file-placeholder">
-                      <div className="upload-icon">📤</div>
-                      <span>Drag & drop your file here or click to browse</span>
-                      <small>Supports PDF, DOCX, and image files</small>
-                    </div>
-                  )}
-                </label>
-              </div>
+        {/* Step 1: File Upload */}
+        <div className={`form-section ${currentStep === 1 ? "active" : currentStep > 1 ? "completed" : ""}`}>
+          <div className="section-header">
+            <div className="section-number">01</div>
+            <div className="section-info">
+              <h3 className="section-title">Upload Your Document</h3>
+              <p className="section-description">Choose a file to transform into an interactive quiz</p>
             </div>
           </div>
 
-          <div className="form-step">
-            <div className="step-number">2</div>
-            <div className="step-content">
-              <label className="step-label">Document Type</label>
-              <div className="radio-group">
-                {[
-                  { value: 'pdf', label: 'PDF Document', icon: '📄' },
-                  { value: 'docx', label: 'Word Document', icon: '📝' },
-                  { value: 'photo', label: 'Image/Photo', icon: '🖼️' }
-                ].map((option) => (
-                  <label key={option.value} className={`radio-option ${docType === option.value ? 'selected' : ''}`}>
+          <div
+            className={`file-drop-zone ${dragActive ? "drag-active" : ""} ${file ? "has-file" : ""}`}
+            onDragEnter={handleDrag}
+            onDragLeave={handleDrag}
+            onDragOver={handleDrag}
+            onDrop={handleDrop}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              onChange={handleFileSelect}
+              accept=".pdf,.docx,.jpg,.jpeg,.png"
+              hidden
+            />
+
+            {file ? (
+              <div className="file-selected">
+                <div className="file-preview">
+                  <div className="file-icon-wrapper">
+                    <FileText className="w-8 h-8" />
+                  </div>
+                  <div className="file-details">
+                    <div className="file-name">{file.name}</div>
+                    <div className="file-meta">
+                      <span className="file-size">{formatFileSize(file.size)}</span>
+                      <span className="file-type">{file.type || "Unknown type"}</span>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="change-file-btn"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setFile(null)
+                    setCurrentStep(1)
+                  }}
+                >
+                  Change File
+                </button>
+              </div>
+            ) : (
+              <div className="file-placeholder">
+                <div className="upload-icon-wrapper">
+                  <Upload className="w-12 h-12" />
+                  <div className="upload-animation" />
+                </div>
+                <div className="upload-text">
+                  <h4>Drop your file here or click to browse</h4>
+                  <p>Supports PDF, DOCX, JPG, PNG files up to 10MB</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Step 2: Document Type */}
+        <div className={`form-section ${currentStep === 2 ? "active" : currentStep > 2 ? "completed" : ""}`}>
+          <div className="section-header">
+            <div className="section-number">02</div>
+            <div className="section-info">
+              <h3 className="section-title">Document Type</h3>
+              <p className="section-description">Select the type of document you've uploaded</p>
+            </div>
+          </div>
+
+          <div className="document-types">
+            {documentTypes.map((type) => (
+              <label key={type.value} className={`document-type-card ${docType === type.value ? "selected" : ""}`}>
+                <input
+                  type="radio"
+                  name="docType"
+                  value={type.value}
+                  checked={docType === type.value}
+                  onChange={(e) => {
+                    setDocType(e.target.value)
+                    setCurrentStep(3)
+                  }}
+                />
+                <div className={`type-icon bg-gradient-to-br ${type.color}`}>
+                  <type.icon className="w-6 h-6 text-white" />
+                </div>
+                <div className="type-content">
+                  <h4 className="type-label">{type.label}</h4>
+                  <p className="type-description">{type.description}</p>
+                </div>
+                <div className="type-check">{docType === type.value && <div className="check-mark">✓</div>}</div>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* Step 3: Quiz Settings */}
+        <div className={`form-section ${currentStep === 3 ? "active" : ""}`}>
+          <div className="section-header">
+            <div className="section-number">03</div>
+            <div className="section-info">
+              <h3 className="section-title">Quiz Configuration</h3>
+              <p className="section-description">Customize your quiz parameters for optimal learning</p>
+            </div>
+          </div>
+
+          <div className="quiz-settings">
+            {/* Number of Questions */}
+            <div className="setting-card">
+              <div className="setting-header">
+                <div className="setting-icon">
+                  <Target className="w-5 h-5" />
+                </div>
+                <div className="setting-info">
+                  <h4 className="setting-title">Number of Questions</h4>
+                  <p className="setting-description">Choose how many questions to generate</p>
+                </div>
+              </div>
+
+              <div className="number-selector">
+                <button
+                  type="button"
+                  className="number-btn"
+                  onClick={() => setNumQuestions(Math.max(1, numQuestions - 1))}
+                  disabled={numQuestions <= 1}
+                >
+                  <Minus className="w-4 h-4" />
+                </button>
+                <div className="number-display">
+                  <span className="number-value">{numQuestions}</span>
+                  <span className="number-label">questions</span>
+                </div>
+                <button
+                  type="button"
+                  className="number-btn"
+                  onClick={() => setNumQuestions(Math.min(20, numQuestions + 1))}
+                  disabled={numQuestions >= 20}
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Difficulty Level */}
+            <div className="setting-card">
+              <div className="setting-header">
+                <div className="setting-icon">
+                  <Zap className="w-5 h-5" />
+                </div>
+                <div className="setting-info">
+                  <h4 className="setting-title">Difficulty Level</h4>
+                  <p className="setting-description">Select the complexity of generated questions</p>
+                </div>
+              </div>
+
+              <div className="difficulty-selector">
+                {difficultyLevels.map((difficulty) => (
+                  <label
+                    key={difficulty.value}
+                    className={`difficulty-option ${level === difficulty.value ? "selected" : ""}`}
+                  >
                     <input
                       type="radio"
-                      name="docType"
-                      value={option.value}
-                      checked={docType === option.value}
-                      onChange={(e) => setDocType(e.target.value)}
+                      name="level"
+                      value={difficulty.value}
+                      checked={level === difficulty.value}
+                      onChange={(e) => setLevel(e.target.value)}
                     />
-                    <span className="radio-icon">{option.icon}</span>
-                    <span className="radio-label">{option.label}</span>
+                    <div className={`difficulty-indicator bg-gradient-to-r ${difficulty.color}`}>
+                      <span className="difficulty-emoji">{difficulty.emoji}</span>
+                    </div>
+                    <div className="difficulty-content">
+                      <h5 className="difficulty-label">{difficulty.label}</h5>
+                      <p className="difficulty-description">{difficulty.description}</p>
+                    </div>
                   </label>
                 ))}
               </div>
             </div>
-          </div>
 
-          <div className="form-step">
-            <div className="step-number">3</div>
-            <div className="step-content">
-              <label className="step-label">Quiz Settings</label>
-              <div className="settings-grid">
-                <div className="setting-item">
-                  <label htmlFor="numQuestions">Number of Questions</label>
-                  <div className="number-input-container">
-                    <button 
-                      type="button" 
-                      className="number-btn"
-                      onClick={() => setNumQuestions(Math.max(1, numQuestions - 1))}
-                    >
-                      -
-                    </button>
-                    <input
-                      id="numQuestions"
-                      type="number"
-                      value={numQuestions}
-                      onChange={(e) => setNumQuestions(Math.max(1, parseInt(e.target.value, 10)))}
-                      min="1"
-                      max="20"
-                      className="number-input"
-                    />
-                    <button 
-                      type="button" 
-                      className="number-btn"
-                      onClick={() => setNumQuestions(Math.min(20, numQuestions + 1))}
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-                <div className="setting-item">
-                  <label htmlFor="level">Difficulty Level</label>
-                  <select id="level" value={level} onChange={(e) => setLevel(e.target.value)} className="level-select">
-                    <option value="easy">🟢 Easy</option>
-                    <option value="medium">🟡 Medium</option>
-                    <option value="hard">🔴 Hard</option>
-                  </select>
-                </div>
-              </div>
-            </div>
+            {/* Estimated Time */}
+
           </div>
         </div>
 
-        <button type="submit" disabled={isLoading || !file} className="generate-button">
-          {isLoading ? (
-            <>
-              <div className="loading-spinner"></div>
-              Generating Quiz...
-            </>
-          ) : (
-            <>
-              <span>Generate My Quiz</span>
-              <svg className="arrow-icon" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
-              </svg>
-            </>
-          )}
-        </button>
+        {/* Generate Button */}
+        <div className="form-actions">
+          <button type="submit" disabled={isLoading || !file || currentStep < 3} className="generate-button">
+            {isLoading ? (
+              <>
+                <div className="loading-spinner" />
+                <span>Generating Your Quiz...</span>
+                <div className="loading-progress" />
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-5 h-5" />
+                <span>Generate My Quiz</span>
+                <div className="button-shine" />
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* Status Message */}
+        {statusMessage && (
+          <div className="status-message error">
+            <div className="status-icon">⚠️</div>
+            <span>{statusMessage}</span>
+          </div>
+        )}
       </form>
-
-      {statusMessage && (
-        <div className="status-message error">
-          <span>⚠️ {statusMessage}</span>
-        </div>
-      )}
     </div>
-  );
-};
+  )
+}
