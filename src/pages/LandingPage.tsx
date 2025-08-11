@@ -35,13 +35,9 @@ interface LandingPageProps {
 
 export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
   const [isVisible, setIsVisible] = useState(false)
-  const [scrollY, setScrollY] = useState(0)
 
   useEffect(() => {
     setIsVisible(true)
-    const handleScroll = () => setScrollY(window.scrollY)
-    window.addEventListener("scroll", handleScroll)
-    return () => window.removeEventListener("scroll", handleScroll)
   }, [])
 
   const features = [
