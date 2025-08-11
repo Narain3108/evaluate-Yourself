@@ -8,8 +8,7 @@ import {
   ArrowLeft,
   Upload,
   FileText,
-  FileImage,
-  File,
+
   Plus,
   Minus,
   Sparkles,
@@ -17,7 +16,6 @@ import {
   Target,
   Zap,
   BookText,
-  Brain,
   CheckCircle,
 } from "lucide-react"
 
@@ -31,7 +29,7 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onStartQuiz, onSummaryCo
   const [mode, setMode] = useState<"quiz" | "summarize">("quiz")
   const [summaryLength, setSummaryLength] = useState("medium")
   const [file, setFile] = useState<File | null>(null)
-  const [docType, setDocType] = useState("pdf")
+  const [docType] = useState("pdf")
   const [numQuestions, setNumQuestions] = useState(5)
   const [level, setLevel] = useState("medium")
   const [statusMessage, setStatusMessage] = useState("")
@@ -105,29 +103,6 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onStartQuiz, onSummaryCo
     return Number.parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i]
   }
 
-  const documentTypes = [
-    {
-      value: "pdf",
-      label: "PDF Document",
-      icon: FileText,
-      description: "Portable Document Format",
-      color: "from-red-500 to-red-600",
-    },
-    {
-      value: "docx",
-      label: "Word Document",
-      icon: File,
-      description: "Microsoft Word Format",
-      color: "from-blue-500 to-blue-600",
-    },
-    {
-      value: "photo",
-      label: "Image/Photo",
-      icon: FileImage,
-      description: "JPG, PNG, or other images",
-      color: "from-green-500 to-green-600",
-    },
-  ]
 
   const difficultyLevels = [
     {
