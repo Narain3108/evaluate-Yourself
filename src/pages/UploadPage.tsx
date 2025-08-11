@@ -2,16 +2,34 @@
 
 import type React from "react"
 import { useState, useRef } from "react"
-import { uploadFile } from "../api/upload"
-import type { Question } from "../App"
-import { ArrowLeft, Upload, FileText, FileImage, File, Plus, Minus, Sparkles,  Target, Zap } from "lucide-react"
+import { uploadFile, generateSummary } from "../api/upload"
+import type { Question, Summary } from "../App"
+import {
+  ArrowLeft,
+  Upload,
+  FileText,
+  FileImage,
+  File,
+  Plus,
+  Minus,
+  Sparkles,
+  Clock,
+  Target,
+  Zap,
+  BookText,
+  Brain,
+  CheckCircle,
+} from "lucide-react"
 
 interface UploadPageProps {
   onStartQuiz: (questions: Question[]) => void
+  onSummaryComplete: (summary: Summary) => void
   onBack: () => void
 }
 
-export const UploadPage: React.FC<UploadPageProps> = ({ onStartQuiz, onBack }) => {
+export const UploadPage: React.FC<UploadPageProps> = ({ onStartQuiz, onSummaryComplete, onBack }) => {
+  const [mode, setMode] = useState<"quiz" | "summarize">("quiz")
+  const [summaryLength, setSummaryLength] = useState("medium")
   const [file, setFile] = useState<File | null>(null)
   const [docType, setDocType] = useState("pdf")
   const [numQuestions, setNumQuestions] = useState(5)
@@ -38,15 +56,20 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onStartQuiz, onBack }) =
     setDragActive(false)
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       setFile(e.dataTransfer.files[0])
-      setCurrentStep(2)
+      setCurrentStep(3)
     }
   }
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files?.[0]) {
       setFile(e.target.files[0])
-      setCurrentStep(2)
+      setCurrentStep(3)
     }
+  }
+
+  const handleModeChange = (newMode: "quiz" | "summarize") => {
+    setMode(newMode)
+    setCurrentStep(2)
   }
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -60,13 +83,26 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onStartQuiz, onBack }) =
     setIsLoading(true)
 
     try {
-      const result = await uploadFile(file, docType, numQuestions, level)
-      onStartQuiz(result.quiz.questions)
+      if (mode === "quiz") {
+        const result = await uploadFile(file, docType, numQuestions, level)
+        onStartQuiz(result.quiz.questions)
+      } else {
+        const result = await generateSummary(file, summaryLength)
+        onSummaryComplete(result)
+      }
     } catch (error: any) {
       setStatusMessage(`Error: ${error.message || "Operation failed."}`)
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return "0 Bytes"
+    const k = 1024
+    const sizes = ["Bytes", "KB", "MB", "GB"]
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return Number.parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i]
   }
 
   const documentTypes = [
@@ -117,14 +153,6 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onStartQuiz, onBack }) =
     },
   ]
 
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return "0 Bytes"
-    const k = 1024
-    const sizes = ["Bytes", "KB", "MB", "GB"]
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return Number.parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i]
-  }
-
   return (
     <div className="upload-page">
       {/* Header */}
@@ -137,13 +165,14 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onStartQuiz, onBack }) =
         <div className="header-content">
           <div className="header-badge">
             <Sparkles className="w-4 h-4" />
-            <span>AI Quiz Generator</span>
+            <span>AI Content Tools</span>
           </div>
           <h1 className="upload-title">
-            Create Your <span className="gradient-text">Personalized Quiz</span>
+            Generate a <span className="gradient-text">{mode === "quiz" ? "Personalized Quiz" : "Smart Summary"}</span>
           </h1>
           <p className="upload-subtitle">
-            Upload your document and let our AI create engaging questions tailored to your learning goals
+            Upload your document and let our AI create{" "}
+            {mode === "quiz" ? "engaging questions" : "intelligent summaries"} tailored to your learning goals
           </p>
         </div>
 
@@ -162,21 +191,76 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onStartQuiz, onBack }) =
             ))}
           </div>
           <div className="progress-labels">
-            <span className={currentStep >= 1 ? "active" : ""}>Upload</span>
-            <span className={currentStep >= 2 ? "active" : ""}>Configure</span>
-            <span className={currentStep >= 3 ? "active" : ""}>Generate</span>
+            <span className={currentStep >= 1 ? "active" : ""}>Choose Mode</span>
+            <span className={currentStep >= 2 ? "active" : ""}>Upload</span>
+            <span className={currentStep >= 3 ? "active" : ""}>Configure</span>
           </div>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="upload-form">
-        {/* Step 1: File Upload */}
+        {/* Step 1: Mode Selection */}
         <div className={`form-section ${currentStep === 1 ? "active" : currentStep > 1 ? "completed" : ""}`}>
           <div className="section-header">
             <div className="section-number">01</div>
             <div className="section-info">
+              <h3 className="section-title">Choose Your Goal</h3>
+              <p className="section-description">Select what you want to create from your document</p>
+            </div>
+          </div>
+
+          <div className="mode-selector">
+            <button
+              type="button"
+              onClick={() => handleModeChange("quiz")}
+              className={`mode-card ${mode === "quiz" ? "selected" : ""}`}
+            >
+              <div className="mode-icon quiz-mode">
+                <Target className="w-8 h-8" />
+              </div>
+              <div className="mode-content">
+                <h4 className="mode-title">Generate Quiz</h4>
+                <p className="mode-description">Create interactive questions to test knowledge and understanding</p>
+                <div className="mode-features">
+                  <span className="feature-tag">Multiple Choice</span>
+                  <span className="feature-tag">Adaptive Difficulty</span>
+                  <span className="feature-tag">Instant Feedback</span>
+                </div>
+              </div>
+              <div className="mode-check">{mode === "quiz" && <CheckCircle className="w-6 h-6" />}</div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleModeChange("summarize")}
+              className={`mode-card ${mode === "summarize" ? "selected" : ""}`}
+            >
+              <div className="mode-icon summary-mode">
+                <BookText className="w-8 h-8" />
+              </div>
+              <div className="mode-content">
+                <h4 className="mode-title">Generate Summary</h4>
+                <p className="mode-description">Extract key insights and create concise summaries of your content</p>
+                <div className="mode-features">
+                  <span className="feature-tag">Key Points</span>
+                  <span className="feature-tag">Smart Length</span>
+                  <span className="feature-tag">Easy Copy</span>
+                </div>
+              </div>
+              <div className="mode-check">{mode === "summarize" && <CheckCircle className="w-6 h-6" />}</div>
+            </button>
+          </div>
+        </div>
+
+        {/* Step 2: File Upload */}
+        <div className={`form-section ${currentStep === 2 ? "active" : currentStep > 2 ? "completed" : ""}`}>
+          <div className="section-header">
+            <div className="section-number">02</div>
+            <div className="section-info">
               <h3 className="section-title">Upload Your Document</h3>
-              <p className="section-description">Choose a file to transform into an interactive quiz</p>
+              <p className="section-description">
+                Choose a file to transform into {mode === "quiz" ? "an interactive quiz" : "a smart summary"}
+              </p>
             </div>
           </div>
 
@@ -216,7 +300,7 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onStartQuiz, onBack }) =
                   onClick={(e) => {
                     e.stopPropagation()
                     setFile(null)
-                    setCurrentStep(1)
+                    setCurrentStep(2)
                   }}
                 >
                   Change File
@@ -237,128 +321,122 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onStartQuiz, onBack }) =
           </div>
         </div>
 
-        {/* Step 2: Document Type */}
-        <div className={`form-section ${currentStep === 2 ? "active" : currentStep > 2 ? "completed" : ""}`}>
-          <div className="section-header">
-            <div className="section-number">02</div>
-            <div className="section-info">
-              <h3 className="section-title">Document Type</h3>
-              <p className="section-description">Select the type of document you've uploaded</p>
-            </div>
-          </div>
-
-          <div className="document-types">
-            {documentTypes.map((type) => (
-              <label key={type.value} className={`document-type-card ${docType === type.value ? "selected" : ""}`}>
-                <input
-                  type="radio"
-                  name="docType"
-                  value={type.value}
-                  checked={docType === type.value}
-                  onChange={(e) => {
-                    setDocType(e.target.value)
-                    setCurrentStep(3)
-                  }}
-                />
-                <div className={`type-icon bg-gradient-to-br ${type.color}`}>
-                  <type.icon className="w-6 h-6 text-white" />
-                </div>
-                <div className="type-content">
-                  <h4 className="type-label">{type.label}</h4>
-                  <p className="type-description">{type.description}</p>
-                </div>
-                <div className="type-check">{docType === type.value && <div className="check-mark">✓</div>}</div>
-              </label>
-            ))}
-          </div>
-        </div>
-
-        {/* Step 3: Quiz Settings */}
+        {/* Step 3: Configuration */}
         <div className={`form-section ${currentStep === 3 ? "active" : ""}`}>
           <div className="section-header">
             <div className="section-number">03</div>
             <div className="section-info">
-              <h3 className="section-title">Quiz Configuration</h3>
-              <p className="section-description">Customize your quiz parameters for optimal learning</p>
+              <h3 className="section-title">{mode === "quiz" ? "Quiz Configuration" : "Summary Settings"}</h3>
+              <p className="section-description">
+                Customize your {mode === "quiz" ? "quiz parameters" : "summary preferences"} for optimal results
+              </p>
             </div>
           </div>
 
-          <div className="quiz-settings">
-            {/* Number of Questions */}
-            <div className="setting-card">
-              <div className="setting-header">
-                <div className="setting-icon">
-                  <Target className="w-5 h-5" />
-                </div>
-                <div className="setting-info">
-                  <h4 className="setting-title">Number of Questions</h4>
-                  <p className="setting-description">Choose how many questions to generate</p>
-                </div>
-              </div>
-
-              <div className="number-selector">
-                <button
-                  type="button"
-                  className="number-btn"
-                  onClick={() => setNumQuestions(Math.max(1, numQuestions - 1))}
-                  disabled={numQuestions <= 1}
-                >
-                  <Minus className="w-4 h-4" />
-                </button>
-                <div className="number-display">
-                  <span className="number-value">{numQuestions}</span>
-                  <span className="number-label">questions</span>
-                </div>
-                <button
-                  type="button"
-                  className="number-btn"
-                  onClick={() => setNumQuestions(Math.min(20, numQuestions + 1))}
-                  disabled={numQuestions >= 20}
-                >
-                  <Plus className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            {/* Difficulty Level */}
-            <div className="setting-card">
-              <div className="setting-header">
-                <div className="setting-icon">
-                  <Zap className="w-5 h-5" />
-                </div>
-                <div className="setting-info">
-                  <h4 className="setting-title">Difficulty Level</h4>
-                  <p className="setting-description">Select the complexity of generated questions</p>
-                </div>
-              </div>
-
-              <div className="difficulty-selector">
-                {difficultyLevels.map((difficulty) => (
-                  <label
-                    key={difficulty.value}
-                    className={`difficulty-option ${level === difficulty.value ? "selected" : ""}`}
-                  >
-                    <input
-                      type="radio"
-                      name="level"
-                      value={difficulty.value}
-                      checked={level === difficulty.value}
-                      onChange={(e) => setLevel(e.target.value)}
-                    />
-                    <div className={`difficulty-indicator bg-gradient-to-r ${difficulty.color}`}>
-                      <span className="difficulty-emoji">{difficulty.emoji}</span>
+          <div className="configuration-settings">
+            {mode === "quiz" ? (
+              <div className="quiz-settings">
+                {/* Number of Questions */}
+                <div className="setting-card">
+                  <div className="setting-header">
+                    <div className="setting-icon">
+                      <Target className="w-5 h-5" />
                     </div>
-                    <div className="difficulty-content">
-                      <h5 className="difficulty-label">{difficulty.label}</h5>
-                      <p className="difficulty-description">{difficulty.description}</p>
+                    <div className="setting-info">
+                      <h4 className="setting-title">Number of Questions</h4>
+                      <p className="setting-description">Choose how many questions to generate</p>
                     </div>
-                  </label>
-                ))}
+                  </div>
+
+                  <div className="number-selector">
+                    <button
+                      type="button"
+                      className="number-btn"
+                      onClick={() => setNumQuestions(Math.max(1, numQuestions - 1))}
+                      disabled={numQuestions <= 1}
+                    >
+                      <Minus className="w-4 h-4" />
+                    </button>
+                    <div className="number-display">
+                      <span className="number-value">{numQuestions}</span>
+                      <span className="number-label">questions</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="number-btn"
+                      onClick={() => setNumQuestions(Math.min(20, numQuestions + 1))}
+                      disabled={numQuestions >= 20}
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Difficulty Level */}
+                <div className="setting-card">
+                  <div className="setting-header">
+                    <div className="setting-icon">
+                      <Zap className="w-5 h-5" />
+                    </div>
+                    <div className="setting-info">
+                      <h4 className="setting-title">Difficulty Level</h4>
+                      <p className="setting-description">Select the complexity of generated questions</p>
+                    </div>
+                  </div>
+
+                  <div className="difficulty-selector">
+                    {difficultyLevels.map((difficulty) => (
+                      <label
+                        key={difficulty.value}
+                        className={`difficulty-option ${level === difficulty.value ? "selected" : ""}`}
+                      >
+                        <input
+                          type="radio"
+                          name="level"
+                          value={difficulty.value}
+                          checked={level === difficulty.value}
+                          onChange={(e) => setLevel(e.target.value)}
+                        />
+                        <div className={`difficulty-indicator bg-gradient-to-r ${difficulty.color}`}>
+                          <span className="difficulty-emoji">{difficulty.emoji}</span>
+                        </div>
+                        <div className="difficulty-content">
+                          <h5 className="difficulty-label">{difficulty.label}</h5>
+                          <p className="difficulty-description">{difficulty.description}</p>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Estimated Time */}
+                <div className="time-estimate">
+                  <Clock className="w-5 h-5" />
+                  <span>Estimated completion time: {Math.ceil(numQuestions * 1.5)} minutes</span>
+                </div>
               </div>
-            </div>
-
-            {/* Estimated Time */}
-
+            ) : (
+              <div className="summary-settings">
+                {/* Summary Length */}
+                <div className="setting-card">
+                  <h4>Summary Length</h4>
+                  <div className="summary-length-selector">
+                    {/* FIX: Changed options to be more concise */}
+                    {["short", "medium", "long"].map((len) => (
+                      <button
+                        type="button"
+                        key={len}
+                        className={summaryLength === len ? "selected" : ""}
+                        onClick={() => setSummaryLength(len)}
+                      >
+                        {/* Capitalize first letter for display */}
+                        {len.charAt(0).toUpperCase() + len.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -368,13 +446,13 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onStartQuiz, onBack }) =
             {isLoading ? (
               <>
                 <div className="loading-spinner" />
-                <span>Generating Your Quiz...</span>
+                <span>Generating Your {mode === "quiz" ? "Quiz" : "Summary"}...</span>
                 <div className="loading-progress" />
               </>
             ) : (
               <>
                 <Sparkles className="w-5 h-5" />
-                <span>Generate My Quiz</span>
+                <span>Generate My {mode === "quiz" ? "Quiz" : "Summary"}</span>
                 <div className="button-shine" />
               </>
             )}

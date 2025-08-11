@@ -12,16 +12,36 @@ export const uploadFile = async (
   formData.append('numQuestions', String(numQuestions));
   formData.append('level', level);
 
-  const response = await fetch(`${API_URL}/upload`, {
+  // FIX: Prepend the API_URL to the fetch path
+  const response = await fetch(`${API_URL}/api/generate-quiz`, {
     method: 'POST',
     body: formData,
   });
 
-  const result = await response.json();
-
   if (!response.ok) {
-    throw new Error(result.message || 'Failed to upload file.');
+    const errorData = await response.json();
+    throw new Error(errorData.error || 'Failed to generate quiz.');
   }
 
-  return result;
+  return response.json();
 };
+
+export async function generateSummary(file: File, length: string) {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('length', length);
+
+  // FIX: Prepend the API_URL to the fetch path
+  const response = await fetch(`${API_URL}/api/summarize`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || 'Failed to generate summary.');
+  }
+
+  const result = await response.json();
+  return { ...result, fileName: file.name }; // Add fileName for display
+}

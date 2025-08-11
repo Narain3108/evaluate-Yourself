@@ -15,6 +15,14 @@ app.use(express.json());
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
+// Helper to determine docType from the file's mimetype
+const getDocType = (mimetype) => {
+  if (mimetype === 'application/pdf') return 'pdf';
+  if (mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') return 'docx';
+  if (mimetype.startsWith('image/')) return 'photo';
+  return null;
+};
+
 const runPythonScript = (args) => {
   return new Promise((resolve, reject) => {
     const python = spawn('python3', ['main.py', ...args]);
@@ -30,7 +38,7 @@ const runPythonScript = (args) => {
       }
       try {
         const result = JSON.parse(stdout);
-        if (!result.success) {
+        if (result.success === false) { // Check for explicit false
           return reject(new Error(`Python script returned an error: ${result.error}`));
         }
         resolve(result);
@@ -41,15 +49,21 @@ const runPythonScript = (args) => {
   });
 };
 
-app.post('/upload', upload.single('file'), async (req, res) => {
-  const { docType, numQuestions, level } = req.body;
+// Renamed to /api/generate-quiz to match frontend and added robust docType detection
+app.post('/api/generate-quiz', upload.single('file'), async (req, res) => {
+  const { numQuestions, level } = req.body;
   const file = req.file;
 
   if (!file) {
-    return res.status(400).json({ message: 'No file uploaded.' });
+    return res.status(400).json({ error: 'No file uploaded.' });
   }
 
-  console.log(`Received a '${docType}' file: ${file.originalname}`);
+  const docType = getDocType(file.mimetype);
+  if (!docType) {
+    return res.status(400).json({ error: 'Unsupported file type.' });
+  }
+
+  console.log(`Received a '${docType}' file for quiz: ${file.originalname}`);
   
   try {
     let text = '';
@@ -57,7 +71,6 @@ app.post('/upload', upload.single('file'), async (req, res) => {
       case 'pdf': text = await parsePdf(file.buffer); break;
       case 'docx': text = await parseDocx(file.buffer); break;
       case 'photo': text = await parseImage(file.buffer); break;
-      default: return res.status(400).json({ message: 'Unsupported document type.' });
     }
     
     console.log('Processing document...');
@@ -73,9 +86,51 @@ app.post('/upload', upload.single('file'), async (req, res) => {
 
   } catch (error) {
     console.error('Processing error:', error.message);
-    res.status(500).json({ message: error.message || 'An unexpected error occurred.' });
+    res.status(500).json({ error: error.message || 'An unexpected error occurred.' });
   }
 });
+
+// New endpoint for summarization
+app.post('/api/summarize', upload.single('file'), async (req, res) => {
+  const { length } = req.body;
+  const file = req.file;
+
+  if (!file) {
+    return res.status(400).json({ error: 'No file uploaded.' });
+  }
+
+  const docType = getDocType(file.mimetype);
+  if (!docType) {
+    return res.status(400).json({ error: 'Unsupported file type.' });
+  }
+
+  console.log(`Received a '${docType}' file for summarization: ${file.originalname}`);
+
+  try {
+    let text = '';
+    switch (docType) {
+      case 'pdf': text = await parsePdf(file.buffer); break;
+      case 'docx': text = await parseDocx(file.buffer); break;
+      case 'photo': text = await parseImage(file.buffer); break;
+    }
+
+    console.log('Processing document for summarization...');
+    const processResult = await runPythonScript(['process', text, file.originalname, docType]);
+    const doc_id = processResult.doc_id;
+    console.log(`Document processed. Doc ID: ${doc_id}`);
+
+    console.log(`Generating ${length} summary...`);
+    const summaryResult = await runPythonScript(['summarize', doc_id, length]);
+    console.log('Summary generated.');
+
+    res.status(200).json({ message: 'Summary generated successfully!', content: summaryResult.summary.content });
+
+  } catch (error) {
+    console.error('Summarization error:', error.message);
+    res.status(500).json({ error: error.message || 'An unexpected error occurred.' });
+  }
+});
+
 
 app.listen(port, () => {
   console.log(`Backend server is running on http://localhost:${port}`);

@@ -224,7 +224,11 @@ export const Quiz: React.FC<QuizProps> = ({ questions, onFinish }) => {
                         {!isCorrect && (
                           <div className="correct-answer">
                             <div className="answer-label">Correct Answer:</div>
-                            <div className="answer-text">{question.options[question.correctAnswer]}</div>
+                            <div className="answer-text">
+                              {typeof question.correctAnswer === "number" && question.options[question.correctAnswer] !== undefined
+                                ? question.options[question.correctAnswer]
+                                : "N/A"}
+                            </div>
                           </div>
                         )}
 
@@ -232,7 +236,9 @@ export const Quiz: React.FC<QuizProps> = ({ questions, onFinish }) => {
                           <div className="unanswered-notice">
                             <div className="answer-label">Not Answered</div>
                             <div className="answer-text">
-                              Correct answer: {question.options[question.correctAnswer]}
+                              Correct answer: {typeof question.correctAnswer === "number" && question.options[question.correctAnswer] !== undefined
+                                ? question.options[question.correctAnswer]
+                                : "N/A"}
                             </div>
                           </div>
                         )}

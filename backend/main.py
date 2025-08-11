@@ -187,6 +187,50 @@ class RAGProcessor:
             print(f"Error generating quiz with Gemini: {e}", file=sys.stderr)
             return {"success": False, "error": f"Failed to generate or parse quiz from LLM: {e}"}
 
+    def generate_summary(self, doc_id: str, length: str) -> Dict[str, Any]:
+        """
+        Generates a summary from the document context stored in ChromaDB.
+        """
+        print(f"Generating summary for doc_id: {doc_id} with length: {length}", file=sys.stderr)
+
+        # 1. Retrieve context from ChromaDB
+        try:
+            results = self.collection.get(where={"doc_id": doc_id}, include=["documents"])
+            context = " ".join(results['documents'])
+            if not context:
+                raise ValueError("No content found for the given document ID.")
+        except Exception as e:
+            print(f"Error retrieving context from ChromaDB: {e}", file=sys.stderr)
+            return {"success": False, "error": str(e)}
+
+        # 2. Create a prompt for the LLM based on desired length
+        length_instructions = {
+            "short": "a concise, one-paragraph summary",
+            "medium": "a medium-length summary of about 3-4 paragraphs",
+            "detailed": "a detailed summary with key points broken down into a list or bullet points"
+        }
+        instruction = length_instructions.get(length, "a standard summary")
+
+        prompt = f"""
+        Based on the following context, please provide {instruction}.
+        The output should be only the text of the summary, with no extra titles, headers, or conversational text.
+
+        Context:
+        ---
+        {context}
+        ---
+        """
+
+        # 3. Call Gemini to generate the summary
+        try:
+            response = self.model.generate_content(prompt)
+            summary_text = response.text.strip()
+            print("Successfully generated summary from LLM.", file=sys.stderr)
+            return {"success": True, "summary": {"content": summary_text}}
+        except Exception as e:
+            print(f"Error generating summary with Gemini: {e}", file=sys.stderr)
+            return {"success": False, "error": f"Failed to generate summary from LLM: {e}"}
+
 
 def main():
     """
@@ -213,6 +257,14 @@ def main():
             sys.exit(1)
         doc_id, num_questions, level = sys.argv[2], int(sys.argv[3]), sys.argv[4]
         result = rag.generate_quiz(doc_id, num_questions, level)
+        print(json.dumps(result, indent=2))
+
+    elif command == "summarize":
+        if len(sys.argv) < 4:
+            print(json.dumps({"success": False, "error": "Usage: python main.py summarize <doc_id> <length>"}))
+            sys.exit(1)
+        doc_id, length = sys.argv[2], sys.argv[3]
+        result = rag.generate_summary(doc_id, length)
         print(json.dumps(result, indent=2))
 
     else:
