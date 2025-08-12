@@ -131,6 +131,63 @@ app.post('/api/summarize', upload.single('file'), async (req, res) => {
   }
 });
 
+// FIX: Create a dedicated endpoint to process a document and return its ID.
+// This is cleaner than piggybacking on the quiz/summary endpoints.
+app.post('/api/process-document', upload.single('file'), async (req, res) => {
+  const file = req.file;
+  if (!file) {
+    return res.status(400).json({ error: 'No file uploaded.' });
+  }
+
+  const docType = getDocType(file.mimetype);
+  if (!docType) {
+    return res.status(400).json({ error: 'Unsupported file type.' });
+  }
+
+  console.log(`Processing '${docType}' for Q&A: ${file.originalname}`);
+
+  try {
+    let text = '';
+    switch (docType) {
+      case 'pdf': text = await parsePdf(file.buffer); break;
+      case 'docx': text = await parseDocx(file.buffer); break;
+      case 'photo': text = await parseImage(file.buffer); break;
+    }
+
+    const result = await runPythonScript(['process', text, file.originalname, docType]);
+    console.log(`Document processed successfully. Doc ID: ${result.doc_id}`);
+    res.status(200).json({ doc_id: result.doc_id, fileName: file.originalname });
+
+  } catch (error) {
+    console.error('Error processing document:', error.message);
+    res.status(500).json({ error: error.message || 'Failed to process document.' });
+  }
+});
+
+// FIX: Create the new endpoint for handling Q&A.
+app.post('/api/ask-question', async (req, res) => {
+  const { doc_id, question, history } = req.body;
+
+  if (!doc_id || !question) {
+    return res.status(400).json({ error: 'doc_id and question are required.' });
+  }
+
+  try {
+    console.log(`Asking question for doc_id: ${doc_id}`);
+    // The history is stringified to be passed as a single command-line argument.
+    const historyString = JSON.stringify(history || []);
+    
+    const result = await runPythonScript(['ask_question', doc_id, question, historyString]);
+    
+    console.log('Answer generated successfully.');
+    res.status(200).json(result);
+
+  } catch (error) {
+    console.error('Error in /api/ask-question:', error.message);
+    res.status(500).json({ error: error.message || 'Failed to get answer.' });
+  }
+});
+
 
 app.listen(port, () => {
   console.log(`Backend server is running on http://localhost:${port}`);

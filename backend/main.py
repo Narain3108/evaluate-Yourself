@@ -7,6 +7,8 @@ from datetime import datetime
 import chromadb
 from chromadb.config import Settings
 import google.generativeai as genai
+# FIX: Import the client factory to create isolated clients for each API key
+from google.generativeai.client import get_default_generative_client
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -15,18 +17,32 @@ load_dotenv()
 class RAGProcessor:
     def __init__(self, collection_name: str = "documents", persist_directory: str = "./chroma_db"):
         """
-        Initialize the RAG processor with ChromaDB and Gemini.
+        Initialize the RAG processor with ChromaDB and specialized Gemini clients.
         """
         self.collection_name = collection_name
         self.persist_directory = persist_directory
         
-        # Initialize Gemini API
-        api_key = os.getenv('GEMINI_API_KEY')
-        if not api_key:
-            raise ValueError("GEMINI_API_KEY environment variable is required")
-        
-        genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel('gemini-1.5-flash')
+        # FIX: Initialize specialized models for each task using different API keys.
+        chunker_api_key = os.getenv('GEMINI_CHUNKER_API_KEY')
+        quiz_api_key = os.getenv('GEMINI_QUIZ_API_KEY')
+        qa_api_key = os.getenv('GEMINI_QA_API_KEY')
+
+        if not all([chunker_api_key, quiz_api_key, qa_api_key]):
+            raise ValueError("All three API keys (GEMINI_CHUNKER_API_KEY, GEMINI_QUIZ_API_KEY, GEMINI_QA_API_KEY) must be set.")
+
+        # Configure a default key for general library use (like embeddings)
+        genai.configure(api_key=chunker_api_key)
+
+        # Create transport-specific clients for each API key to isolate them
+        chunker_client = get_default_generative_client(api_key=chunker_api_key)
+        quiz_client = get_default_generative_client(api_key=quiz_api_key)
+        qa_client = get_default_generative_client(api_key=qa_api_key)
+
+        # Instantiate models with their specific clients
+        self.chunker_model = genai.GenerativeModel('gemini-1.5-flash', client=chunker_client)
+        self.quiz_model = genai.GenerativeModel('gemini-1.5-flash', client=quiz_client)
+        self.summary_model = genai.GenerativeModel('gemini-1.5-flash', client=quiz_client) # Reuses quiz client
+        self.qa_model = genai.GenerativeModel('gemini-1.5-pro', client=qa_client)
         
         # Initialize ChromaDB client
         self.client = chromadb.PersistentClient(
@@ -57,7 +73,8 @@ class RAGProcessor:
         {text}
         """
         try:
-            response = self.model.generate_content(prompt)
+            # FIX: Use the dedicated chunker model
+            response = self.chunker_model.generate_content(prompt)
             chunks_json = response.text.strip().replace("```json", "").replace("```", "")
             return json.loads(chunks_json)
         except Exception as e:
@@ -158,34 +175,48 @@ class RAGProcessor:
 
         # 2. Create a prompt for the LLM
         prompt = f"""
-        Based on the following context, please generate a quiz with {num_questions} multiple-choice questions.
-        The difficulty level of the questions should be '{level}'.
-        Each question must have exactly 4 options.
-
-        Context:
+        Based on the following text, generate a quiz with {num_questions} questions at a {level} difficulty level.
+        The text is:
         ---
         {context}
         ---
+        Format the output as a single JSON object with a key "questions".
+        "questions" should be an array of objects, where each object has:
+        - "question": The question text (string).
+        - "options": An array of 4 strings, where one is the correct answer.
+        - "answer": The correct answer text (string), which must be one of the options.
+        - "explanation": A string that first explains why the correct answer is right, and then explains why each of the other options is wrong. This should be a detailed, educational explanation.
 
-        Return the quiz as a single JSON object. The object should have a key "questions" which is an array.
-        Each element in the array should be an object with three keys:
-        1. "question": The question text (string).
-        2. "options": An array of 4 strings representing the choices.
-        3. "correctAnswer": The index (0-3) of the correct answer in the "options" array.
-
-        Do not include any other text, explanations, or markdown formatting in your response. Only the JSON object.
+        Do not include any text or formatting outside of this JSON object.
         """
 
-        # 3. Call Gemini to generate the quiz
+        print("Generating quiz with explanations from LLM...", file=sys.stderr)
         try:
-            response = self.model.generate_content(prompt)
-            quiz_json_text = response.text.strip().replace("```json", "").replace("```", "")
+            # FIX: Use the dedicated quiz model
+            response = self.quiz_model.generate_content(prompt)
+            raw_text = response.text
+
+            # FIX: Make JSON parsing more robust by finding the start and end
+            # of the JSON object within the model's raw response.
+            json_start_index = raw_text.find('{')
+            json_end_index = raw_text.rfind('}') + 1
+
+            if json_start_index == -1 or json_end_index == 0:
+                raise json.JSONDecodeError("Could not find a JSON object in the LLM's response.", raw_text, 0)
+
+            quiz_json_text = raw_text[json_start_index:json_end_index]
             quiz_data = json.loads(quiz_json_text)
+            
             print("Successfully generated quiz from LLM.", file=sys.stderr)
             return {"success": True, "quiz": quiz_data}
+        except json.JSONDecodeError as e:
+            # Add more detailed logging to see what the model returned when parsing fails
+            print(f"JSONDecodeError: {e}. Failed to parse LLM response.", file=sys.stderr)
+            print(f"--- LLM Raw Response --- \n{response.text}\n--- End of Raw Response ---", file=sys.stderr)
+            return {"success": False, "error": f"Failed to parse JSON from LLM response: {e}"}
         except Exception as e:
-            print(f"Error generating quiz with Gemini: {e}", file=sys.stderr)
-            return {"success": False, "error": f"Failed to generate or parse quiz from LLM: {e}"}
+            print(f"An unexpected error occurred while generating quiz: {e}", file=sys.stderr)
+            return {"success": False, "error": f"An unexpected error occurred: {e}"}
 
     def generate_summary(self, doc_id: str, length: str) -> Dict[str, Any]:
         """
@@ -223,13 +254,85 @@ class RAGProcessor:
 
         # 3. Call Gemini to generate the summary
         try:
-            response = self.model.generate_content(prompt)
+            # FIX: Use the dedicated summary model
+            response = self.summary_model.generate_content(prompt)
             summary_text = response.text.strip()
             print("Successfully generated summary from LLM.", file=sys.stderr)
             return {"success": True, "summary": {"content": summary_text}}
         except Exception as e:
             print(f"Error generating summary with Gemini: {e}", file=sys.stderr)
             return {"success": False, "error": f"Failed to generate summary from LLM: {e}"}
+
+    def ask_question(self, doc_id: str, question: str, history: list) -> Dict[str, Any]:
+        """
+        Answers a question based on document context and chat history.
+        """
+        print(f"Answering question for doc_id: {doc_id}", file=sys.stderr)
+        
+        # 1. Retrieve context from ChromaDB
+        try:
+            results = self.collection.get(where={"doc_id": doc_id}, include=["documents"])
+            context = " ".join(results['documents'])
+            if not context:
+                raise ValueError("No content found for the given document ID.")
+        except Exception as e:
+            return {"success": False, "error": f"Error retrieving context: {e}"}
+
+        # 2. Format chat history for the prompt
+        formatted_history = ""
+        for message in history:
+            role = "User" if message.get("role") == "user" else "AI"
+            formatted_history += f"{role}: {message.get('content')}\n"
+
+        # 3. Create a prompt that includes history and context
+        # FIX: The prompt is updated to give the AI a more analytical and conversational persona.
+        # It's now instructed to use its reasoning abilities, not just retrieve facts.
+        prompt = f"""You are an expert AI assistant. Your task is to answer questions about a document, but also to provide analysis, opinions, and insights when asked.
+
+**Instructions:**
+1.  **Prioritize Document Context:** Base your primary answer on the provided "Document Context".
+2.  **Use General Knowledge for Analysis:** For questions that require analysis, evaluation, or opinions (e.g., "Is this a good resume?", "What are the weaknesses?"), use your general knowledge to form a thoughtful response, but always ground it in the facts from the document.
+3.  **Be Conversational:** Engage with the user in a helpful, chatbot-like manner. Do not act like a simple database.
+4.  **Distinguish Fact from Opinion:** When you provide an opinion or analysis, make it clear that it is an interpretation based on the document's contents. For example, start with phrases like "Based on the resume, my analysis is...", "From a software engineering hiring perspective...", or "While the document doesn't explicitly state this, the projects listed suggest...".
+
+**Conversation History:**
+---
+{formatted_history}
+---
+
+**Document Context:**
+---
+{context}
+---
+
+**User's Question:** {question}
+
+**Your Answer:**"""
+
+        # 4. Call Gemini to generate the answer
+        try:
+            # FIX: Use the dedicated Q&A model
+            response = self.qa_model.generate_content(prompt)
+            answer_text = response.text.strip()
+            
+            # 5. Save the new Q&A pair to the history log
+            self.save_chat_history(doc_id, {"role": "user", "content": question})
+            self.save_chat_history(doc_id, {"role": "ai", "content": answer_text})
+
+            return {"success": True, "answer": answer_text}
+        except Exception as e:
+            return {"success": False, "error": f"Failed to generate answer from LLM: {e}"}
+
+    def save_chat_history(self, doc_id: str, message: Dict[str, str]):
+        """Saves a message to a file-based chat log."""
+        log_dir = "chat_logs"
+        os.makedirs(log_dir, exist_ok=True)
+        log_file = os.path.join(log_dir, f"{doc_id}.jsonl")
+        try:
+            with open(log_file, "a") as f:
+                f.write(json.dumps(message) + "\n")
+        except Exception as e:
+            print(f"Warning: Could not save chat history for {doc_id}: {e}", file=sys.stderr)
 
 
 def main():
@@ -265,6 +368,18 @@ def main():
             sys.exit(1)
         doc_id, length = sys.argv[2], sys.argv[3]
         result = rag.generate_summary(doc_id, length)
+        print(json.dumps(result, indent=2))
+
+    elif command == "ask_question":
+        if len(sys.argv) < 5:
+            print(json.dumps({"success": False, "error": "Usage: python main.py ask_question <doc_id> <question> <history_json>"}))
+            sys.exit(1)
+        doc_id, question, history_str = sys.argv[2], sys.argv[3], sys.argv[4]
+        try:
+            history = json.loads(history_str)
+        except json.JSONDecodeError:
+            history = []
+        result = rag.ask_question(doc_id, question, history)
         print(json.dumps(result, indent=2))
 
     else:

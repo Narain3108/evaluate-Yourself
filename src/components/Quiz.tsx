@@ -232,16 +232,16 @@ export const Quiz: React.FC<QuizProps> = ({ questions, onFinish }) => {
                           </div>
                         )}
 
-                        {!wasAnswered && (
-                          <div className="unanswered-notice">
-                            <div className="answer-label">Not Answered</div>
-                            <div className="answer-text">
-                              Correct answer: {typeof question.correctAnswer === "number" && question.options[question.correctAnswer] !== undefined
-                                ? question.options[question.correctAnswer]
-                                : "N/A"}
-                            </div>
+                        {/* FIX: Add the AI-generated explanation section */}
+                        <div className="explanation-section">
+                          <div className="explanation-header">
+                            <BookOpen className="w-4 h-4" />
+                            <span>Explanation</span>
                           </div>
-                        )}
+                          <p className="explanation-text">
+                            {question.explanation || "No explanation available."}
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </div>

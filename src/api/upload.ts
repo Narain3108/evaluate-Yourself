@@ -45,3 +45,33 @@ export async function generateSummary(file: File, length: string) {
   const result = await response.json();
   return { ...result, fileName: file.name }; // Add fileName for display
 }
+
+export async function processDocumentForQA(file: File) {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await fetch(`${API_URL}/api/process-document`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || 'Failed to process document.');
+  }
+  return response.json();
+}
+
+export async function askQuestion(doc_id: string, question: string, history: any[]) {
+  const response = await fetch(`${API_URL}/api/ask-question`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ doc_id, question, history }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || 'Failed to get answer.');
+  }
+  return response.json();
+}
