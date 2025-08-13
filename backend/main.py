@@ -7,8 +7,6 @@ from datetime import datetime
 import chromadb
 from chromadb.config import Settings
 import google.generativeai as genai
-# FIX: Import the client factory to create isolated clients for each API key
-from google.generativeai.client import get_default_generative_client
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -22,27 +20,13 @@ class RAGProcessor:
         self.collection_name = collection_name
         self.persist_directory = persist_directory
         
-        # FIX: Initialize specialized models for each task using different API keys.
-        chunker_api_key = os.getenv('GEMINI_CHUNKER_API_KEY')
-        quiz_api_key = os.getenv('GEMINI_QUIZ_API_KEY')
-        qa_api_key = os.getenv('GEMINI_QA_API_KEY')
+        # Load the three separate API keys from environment variables
+        self.chunker_api_key = os.getenv('GEMINI_CHUNKER_API_KEY')
+        self.quiz_api_key = os.getenv('GEMINI_QUIZ_API_KEY')
+        self.qa_api_key = os.getenv('GEMINI_QA_API_KEY')
 
-        if not all([chunker_api_key, quiz_api_key, qa_api_key]):
+        if not all([self.chunker_api_key, self.quiz_api_key, self.qa_api_key]):
             raise ValueError("All three API keys (GEMINI_CHUNKER_API_KEY, GEMINI_QUIZ_API_KEY, GEMINI_QA_API_KEY) must be set.")
-
-        # Configure a default key for general library use (like embeddings)
-        genai.configure(api_key=chunker_api_key)
-
-        # Create transport-specific clients for each API key to isolate them
-        chunker_client = get_default_generative_client(api_key=chunker_api_key)
-        quiz_client = get_default_generative_client(api_key=quiz_api_key)
-        qa_client = get_default_generative_client(api_key=qa_api_key)
-
-        # Instantiate models with their specific clients
-        self.chunker_model = genai.GenerativeModel('gemini-1.5-flash', client=chunker_client)
-        self.quiz_model = genai.GenerativeModel('gemini-1.5-flash', client=quiz_client)
-        self.summary_model = genai.GenerativeModel('gemini-1.5-flash', client=quiz_client) # Reuses quiz client
-        self.qa_model = genai.GenerativeModel('gemini-1.5-pro', client=qa_client)
         
         # Initialize ChromaDB client
         self.client = chromadb.PersistentClient(
@@ -73,8 +57,10 @@ class RAGProcessor:
         {text}
         """
         try:
-            # FIX: Use the dedicated chunker model
-            response = self.chunker_model.generate_content(prompt)
+            # FIX: Configure the specific API key for this task
+            genai.configure(api_key=self.chunker_api_key)
+            model = genai.GenerativeModel('gemini-1.5-flash')
+            response = model.generate_content(prompt)
             chunks_json = response.text.strip().replace("```json", "").replace("```", "")
             return json.loads(chunks_json)
         except Exception as e:
@@ -87,6 +73,8 @@ class RAGProcessor:
             return []
         print(f"Creating embeddings for {len(texts)} chunks...", file=sys.stderr)
         try:
+            # FIX: Configure the key for embeddings (can be any of them, chunker is fine)
+            genai.configure(api_key=self.chunker_api_key)
             result = genai.embed_content(
                 model="models/embedding-001",
                 content=texts,
@@ -192,11 +180,13 @@ class RAGProcessor:
 
         print("Generating quiz with explanations from LLM...", file=sys.stderr)
         try:
-            # FIX: Use the dedicated quiz model
-            response = self.quiz_model.generate_content(prompt)
+            # FIX: Configure the specific API key for this task
+            genai.configure(api_key=self.quiz_api_key)
+            model = genai.GenerativeModel('gemini-1.5-flash')
+            response = model.generate_content(prompt)
             raw_text = response.text
 
-            # FIX: Make JSON parsing more robust by finding the start and end
+            # Make JSON parsing more robust by finding the start and end
             # of the JSON object within the model's raw response.
             json_start_index = raw_text.find('{')
             json_end_index = raw_text.rfind('}') + 1
@@ -254,8 +244,10 @@ class RAGProcessor:
 
         # 3. Call Gemini to generate the summary
         try:
-            # FIX: Use the dedicated summary model
-            response = self.summary_model.generate_content(prompt)
+            # FIX: Configure the specific API key for this task
+            genai.configure(api_key=self.quiz_api_key) # Reusing quiz key
+            model = genai.GenerativeModel('gemini-1.5-flash')
+            response = model.generate_content(prompt)
             summary_text = response.text.strip()
             print("Successfully generated summary from LLM.", file=sys.stderr)
             return {"success": True, "summary": {"content": summary_text}}
@@ -299,7 +291,6 @@ class RAGProcessor:
 ---
 {formatted_history}
 ---
-
 **Document Context:**
 ---
 {context}
@@ -311,8 +302,10 @@ class RAGProcessor:
 
         # 4. Call Gemini to generate the answer
         try:
-            # FIX: Use the dedicated Q&A model
-            response = self.qa_model.generate_content(prompt)
+            # FIX: Configure the specific API key for this task
+            genai.configure(api_key=self.qa_api_key)
+            model = genai.GenerativeModel('gemini-1.5-flash')
+            response = model.generate_content(prompt)
             answer_text = response.text.strip()
             
             # 5. Save the new Q&A pair to the history log
@@ -333,7 +326,6 @@ class RAGProcessor:
                 f.write(json.dumps(message) + "\n")
         except Exception as e:
             print(f"Warning: Could not save chat history for {doc_id}: {e}", file=sys.stderr)
-
 
 def main():
     """
@@ -385,6 +377,7 @@ def main():
     else:
         print(json.dumps({"success": False, "error": f"Unknown command: {command}"}))
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()
