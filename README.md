@@ -509,10 +509,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 👥 Team
 
-- **Narain** - Lead Full Stack Developer
-- **Nikitha** - Senior Frontend Developer  
-- **Karthikeyan** - Senior Backend Developer
-
+- **Narain** 
+- **Nikitha** 
+- **Karthikeyan**
 ## 🙋‍♂️ Support
 
 If you encounter any issues or have questions:
